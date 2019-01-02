@@ -25,10 +25,10 @@ function initMouse() {
 
 function keyEvent(e) {
 	switch(e.which) {
-		case(90): player.z +=0.1; break;
-		case(68): player.x +=0.1; break;
-		case(81): player.x -=0.1; break;
-		case(83): player.z -=0.1; break;
+		case(90): player.x +=0.2 * player.anglecos(); player.y +=0.2 * player.anglesin(); break;
+		case(81): player.x -=0.2 * player.anglesin(); player.y -=0.2 * player.anglesin(); break;
+		case(83): player.x +=0.2 * player.anglecos(); player.y -=0.2 * player.anglecos(); break;
+		case(68): player.x +=0.2 * player.anglesin(); player.y +=0.2 * player.anglecos(); break;
 	}
 	console.log(player);
 	drawScreen();

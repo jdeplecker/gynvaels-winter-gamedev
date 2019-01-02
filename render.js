@@ -111,6 +111,13 @@ function drawRect(x1, y1, x2, y2, color) {
 	mainrenderscene.appendChild(rect);
 }
 
+function drawPolygon(points, color) {
+	var poly = document.createElementNS(xmlns, "polygon");
+	poly.setAttributeNS(null,"points",points);
+	poly.setAttributeNS(null,"fill", color);
+	mainrenderscene.appendChild(poly);	
+}
+
 function drawScreen() {
 	while (mainrenderscene.lastChild) {mainrenderscene.removeChild(mainrenderscene.lastChild); }
 	var sectorQueue = [];
@@ -167,33 +174,39 @@ function drawScreen() {
 			var y1a  = H/2 - yaw(yceil, tz1) * yscale1,  y1b = H/2 - yaw(yfloor, tz1) * yscale1;
 			var y2a  = H/2 - yaw(yceil, tz2) * yscale2,  y2b = H/2 - yaw(yfloor, tz2) * yscale2;
 			
-			var beginx = Math.max(x1, sx1), endx = Math.min(x2, sx2);
+			var beginx = Math.round(Math.max(x1, sx1)), endx = Math.round(Math.min(x2, sx2));
 			
-			if(currentSector.neighbors[vertexIndex] >= 0) {
-				drawRect(beginx, y1a, endx, y1b, "red");
-			 } else {
-				drawRect(beginx, y1a, endx, y1b, "white");
+			var ceilingpoints = "";
+			var wallpoints = "";
+			var floorpoints = "";
+			
+			// Add top polygon points
+			for(var x = beginx + 1; x <= endx; x+=1) {	
+				var ya = (x - x1) * (y2a-y1a) / (x2-x1) + y1a, cya = ya.clamp(ytop[x],ybottom[x]); // top
+				var yb = (x - x1) * (y2b-y1b) / (x2-x1) + y1b, cyb = yb.clamp(ytop[x],ybottom[x]); // bottom
+				
+				ceilingpoints += x + "," + ytop[x] + " ";
+				wallpoints += x + "," + cya + " ";
+				floorpoints += x + "," + (cyb + 1) + " ";
 			}
 			
-			drawRect(beginx, 0, endx, y1a.clamp(0,H), "grey");
-			drawRect(beginx, y1b.clamp(0,H), endx, H, "green");
-			
-		
-			// for(var x = beginx + 1; x <= endx; x+=1) {				
-				// var ya = (x - x1) * (y2a-y1a) / (x2-x1) + y1a, cya = ya.clamp(ytop[x],ybottom[x]); // top
-				// var yb = (x - x1) * (y2b-y1b) / (x2-x1) + y1b, cyb = yb.clamp(ytop[x],ybottom[x]); // bottom
+			// Add bottom polygon points
+			for(var x = endx; x >= beginx + 1; x-=1) {	
+				var ya = (x - x1) * (y2a-y1a) / (x2-x1) + y1a, cya = ya.clamp(ytop[x],ybottom[x]); // top
+				var yb = (x - x1) * (y2b-y1b) / (x2-x1) + y1b, cyb = yb.clamp(ytop[x],ybottom[x]); // bottom
 				
-				// Render ceiling: everything above this sector's ceiling height.
-				// vLine(x, ytop[x], cya-1, "grey" ,"lightgrey","grey");
-				// Render floor: everything below this sector's floor height.
-				// vLine(x, cyb+1, ybottom[x], "green","lightgreen","green");
-				// Render wall:
-				// if(currentSector.neighbors[vertexIndex] >= 0) {
-					// vLine(x, cya, cyb, "black", "red", "black");
-				// } else {
-					// vLine(x, cya, cyb, "black", "white", "black");
-				// }
-			// }
+				ceilingpoints += x + "," + (cya - 1) + " ";
+				wallpoints += x + "," + cyb + " ";
+				floorpoints += x + "," + (ybottom[x] + 1) + " ";
+			}
+			
+			drawPolygon(ceilingpoints, "grey");
+			if(currentSector.neighbors[vertexIndex] >= 0) {
+				drawPolygon(wallpoints, "red");
+			} else {
+				drawPolygon(wallpoints, "white");
+			}
+			drawPolygon(floorpoints, "green");
 				
 			if (currentSector.neighbors[vertexIndex] >= 0 && !renderedSectors.includes(currentSector.neighbors[vertexIndex]) && endx >= beginx){
 				// sectorQueue.push({ sectorno: currentSector.neighbors[vertexIndex], sx1: 0, sx2: W-1})
