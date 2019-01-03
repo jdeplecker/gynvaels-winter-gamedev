@@ -28,17 +28,33 @@ function intersectBox(x0, y0, x1, y1, x2, y2, x3, y3) {
 }
 
 // Calculate intersecting point between 2 lines
-function intersect(a1, a2, b1, b2) {
-	var x1 = new Vector2D(a1.vxs(a2), a1.x - a2.x);
-	var x2 = new Vector2D(b1.vxs(b2), b1.x - b2.x);	
-	var y1 = new Vector2D(a1.vxs(a2), a1.y - a2.y);
-	var y2 = new Vector2D(a1.vxs(a2), b1.y - b2.y);
-	var n1 = new Vector2D(a1.x - a2.x, a1.y - a2.y);
-	var n2 = new Vector2D(b1.x - b2.x, b1.y - b2.y);
-	var x = x1.vxs(x2) / n1.vxs(n2);
-	var y = y1.vxs(y2) / n1.vxs(n2);
-	
-	return new Vector2D(x, y);
+function intersect(x1, y1, x2, y2, x3, y3, x4, y4) {
+
+  // Check if none of the lines are of length 0
+	if ((x1 === x2 && y1 === y2) || (x3 === x4 && y3 === y4)) {
+		return false
+	}
+
+	denominator = ((y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1))
+
+  // Lines are parallel
+	if (denominator === 0) {
+		return false
+	}
+
+	let ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denominator
+	let ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denominator
+
+  // is the intersection along the segments
+	if (ua < 0 || ua > 1 || ub < 0 || ub > 1) {
+		return false
+	}
+
+  // Return a object with the x and y coordinates of the intersection
+	let x = x1 + ua * (x2 - x1)
+	let y = y1 + ua * (y2 - y1)
+
+	return new Vector2D(x, y)
 }
 
 function renderInit() {
@@ -111,10 +127,13 @@ function drawRect(x1, y1, x2, y2, color) {
 	mainrenderscene.appendChild(rect);
 }
 
-function drawPolygon(points, color) {
+function drawPolygon(points, color, border) {
 	var poly = document.createElementNS(xmlns, "polygon");
 	poly.setAttributeNS(null,"points",points);
 	poly.setAttributeNS(null,"fill", color);
+	if(border) {
+		poly.setAttributeNS(null,"style","stroke-width:2;stroke:rgb(0,0,0);");
+	}
 	mainrenderscene.appendChild(poly);	
 }
 
@@ -152,15 +171,15 @@ function drawScreen() {
 			{
 				var nearz = 1e-4, farz = 5, nearside = 1e-5, farside = 20.;
 				// Find an intersection between the wall and the approximate edges of player's view
-				i1 = intersect(new Vector2D(tx1,tz1), new Vector2D(tx2,tz2), new Vector2D(-nearside,nearz), new Vector2D(-farside,farz));
-				i2 = intersect(new Vector2D(tx1,tz1), new Vector2D(tx2,tz2), new Vector2D(nearside,nearz), new Vector2D(farside,farz));
+				i1 = intersect(tx1,tz1,tx2,tz2,-nearside,nearz,-farside,farz);
+				i2 = intersect(tx1,tz1,tx2,tz2,nearside,nearz,farside,farz);
 				if(tz1 < nearz) { if(i1.y > 0) { tx1 = i1.x; tz1 = i1.y; } else { tx1 = i2.x; tz1 = i2.y; } }
 				if(tz2 < nearz) { if(i1.y > 0) { tx2 = i1.x; tz2 = i1.y; } else { tx2 = i2.x; tz2 = i2.y; } }
 			}
 			
 			// Perspective transformation */
-			var xscale1 = hfov / tz1, yscale1 = vfov / tz1; var x1 = W/2 - tx1 * xscale1;
-			var xscale2 = hfov / tz2, yscale2 = vfov / tz2; var x2 = W/2 - tx2 * xscale2;
+			var xscale1 = hfov / tz1, yscale1 = vfov / tz1; var x1 = W/2 - Math.ceil(tx1 * xscale1);
+			var xscale2 = hfov / tz2, yscale2 = vfov / tz2; var x2 = W/2 - Math.ceil(tx2 * xscale2);
 			
 			if(x1 >= x2 || x2 < sx1 || x1 > sx2) continue; // Only render if it's visible
 			/* Acquire the floor and ceiling heights, relative to where the player's view is */
@@ -171,42 +190,42 @@ function drawScreen() {
 			
 			// convert to screen coordinates
 			function yaw(y, z) { return y + z * player.yaw; }			
-			var y1a  = H/2 - yaw(yceil, tz1) * yscale1,  y1b = H/2 - yaw(yfloor, tz1) * yscale1;
-			var y2a  = H/2 - yaw(yceil, tz2) * yscale2,  y2b = H/2 - yaw(yfloor, tz2) * yscale2;
+			var y1a  = H/2 - Math.ceil(yaw(yceil, tz1) * yscale1),  y1b = H/2 - Math.ceil(yaw(yfloor, tz1) * yscale1);
+			var y2a  = H/2 - Math.ceil(yaw(yceil, tz2) * yscale2),  y2b = H/2 - Math.ceil(yaw(yfloor, tz2) * yscale2);
 			
-			var beginx = Math.round(Math.max(x1, sx1)), endx = Math.round(Math.min(x2, sx2));
+			var beginx = Math.ceil(Math.max(x1, sx1)), endx = Math.ceil(Math.min(x2, sx2));
 			
 			var ceilingpoints = "";
 			var wallpoints = "";
 			var floorpoints = "";
 			
 			// Add top polygon points
-			for(var x = beginx + 1; x <= endx; x+=1) {	
-				var ya = (x - x1) * (y2a-y1a) / (x2-x1) + y1a, cya = ya.clamp(ytop[x],ybottom[x]); // top
-				var yb = (x - x1) * (y2b-y1b) / (x2-x1) + y1b, cyb = yb.clamp(ytop[x],ybottom[x]); // bottom
-				
+			for(var x = beginx; x <= endx; x+=1) {	
+				var ya = Math.ceil((x - x1) * (y2a-y1a) / (x2-x1) + y1a), cya = Math.ceil(ya.clamp(ytop[x],ybottom[x])); // top
+				var yb = Math.ceil((x - x1) * (y2b-y1b) / (x2-x1) + y1b), cyb = Math.ceil(yb.clamp(ytop[x],ybottom[x])); // bottom
+					
 				ceilingpoints += x + "," + ytop[x] + " ";
+				floorpoints += x + "," + cyb + " ";
 				wallpoints += x + "," + cya + " ";
-				floorpoints += x + "," + (cyb + 1) + " ";
 			}
 			
 			// Add bottom polygon points
-			for(var x = endx; x >= beginx + 1; x-=1) {	
-				var ya = (x - x1) * (y2a-y1a) / (x2-x1) + y1a, cya = ya.clamp(ytop[x],ybottom[x]); // top
-				var yb = (x - x1) * (y2b-y1b) / (x2-x1) + y1b, cyb = yb.clamp(ytop[x],ybottom[x]); // bottom
+			for(var x = endx; x >= beginx; x-=1) {	
+				var ya = Math.ceil((x - x1) * (y2a-y1a) / (x2-x1) + y1a), cya = Math.ceil(ya.clamp(ytop[x],ybottom[x])); // top
+				var yb = Math.ceil((x - x1) * (y2b-y1b) / (x2-x1) + y1b), cyb = Math.ceil(yb.clamp(ytop[x],ybottom[x])); // bottom
 				
-				ceilingpoints += x + "," + (cya - 1) + " ";
-				wallpoints += x + "," + cyb + " ";
+				ceilingpoints += x + "," + cya + " ";
 				floorpoints += x + "," + (ybottom[x] + 1) + " ";
+				wallpoints += x + "," + cyb + " ";
 			}
 			
-			drawPolygon(ceilingpoints, "grey");
+			drawPolygon(ceilingpoints, "grey", false);
 			if(currentSector.neighbors[vertexIndex] >= 0) {
-				drawPolygon(wallpoints, "red");
+				drawPolygon(wallpoints, "red", true);
 			} else {
-				drawPolygon(wallpoints, "white");
+				drawPolygon(wallpoints, "white", true);
 			}
-			drawPolygon(floorpoints, "green");
+			drawPolygon(floorpoints, "green", false);
 				
 			if (currentSector.neighbors[vertexIndex] >= 0 && !renderedSectors.includes(currentSector.neighbors[vertexIndex]) && endx >= beginx){
 				// sectorQueue.push({ sectorno: currentSector.neighbors[vertexIndex], sx1: 0, sx2: W-1})
