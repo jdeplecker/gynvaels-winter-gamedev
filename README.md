@@ -1,3 +1,4 @@
 # gynvaels-winter-gamedev
 
-Copyright d3 https://d3js.org v5.7.0 Copyright 2018 Mike Bostock
+This is my attempt at making a game for the GWGC2018/19 challenge
+https://gynvael.coldwind.pl/?lang=en&id=697

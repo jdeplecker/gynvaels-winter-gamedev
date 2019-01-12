@@ -7,7 +7,6 @@ const W = 1024;
 const H = 768;
 
 const EyeHeight = 6;    // Camera height from floor when standing
-const DuckHeight = 2.5;  // And when crouching
 const HeadMargin = 1;    // How much room there is above camera before the head hits the ceiling
 const KneeHeight = 2;    // How tall obstacles the player can simply walk over without jumping
 const hfov = 0.73*H;  // Affects the horizontal field of vision
@@ -91,7 +90,7 @@ function loadData() {
 		sectors.push(new Sector(floor, ceiling, vertexList, neighbors));
 	}
 	
-	player = new Player(data.player[0], data.player[1], 0, new Vector3D(0,0,0), data.player[2], 0, data.player[3]);
+	player = new Player(data.player[0], data.player[1], EyeHeight, new Vector3D(0,0,0), data.player[2], 0, data.player[3]);
 }
 
 function vLine(x, y1, y2, topColor, middleColor, bottomColor) {	
@@ -127,14 +126,15 @@ function drawRect(x1, y1, x2, y2, color) {
 	mainrenderscene.appendChild(rect);
 }
 
-function drawPolygon(points, color, border) {
+function drawPolygon(beginx, endx, y, color, border) {
 	var poly = document.createElementNS(xmlns, "polygon");
+	var points = [beginx, y[0], endx, y[1], endx, y[2], beginx, y[3]].join(",");
 	poly.setAttributeNS(null,"points",points);
 	poly.setAttributeNS(null,"fill", color);
 	if(border) {
 		poly.setAttributeNS(null,"style","stroke-width:2;stroke:rgb(0,0,0);");
 	}
-	mainrenderscene.appendChild(poly);	
+	mainrenderscene.insertBefore(poly, mainrenderscene.firstChild);	
 }
 
 function drawScreen() {
@@ -186,8 +186,6 @@ function drawScreen() {
 			var yceil  = currentSector.ceiling  - player.z;
 			var yfloor = currentSector.floor - player.z;
 			
-			// check sector through portal TODO
-			
 			// convert to screen coordinates
 			function yaw(y, z) { return y + z * player.yaw; }			
 			var y1a  = H/2 - Math.ceil(yaw(yceil, tz1) * yscale1),  y1b = H/2 - Math.ceil(yaw(yfloor, tz1) * yscale1);
@@ -195,42 +193,57 @@ function drawScreen() {
 			
 			var beginx = Math.ceil(Math.max(x1, sx1)), endx = Math.ceil(Math.min(x2, sx2));
 			
-			var ceilingpoints = "";
-			var wallpoints = "";
-			var floorpoints = "";
+			var newytop = ytop.slice();
+			var newybottom = ybottom.slice();
+			var cyaBegin = 0;
+			var cyaEnd = 0;
+			var cybBegin = 0;
+			var cybEnd = 0;
 			
 			// Add top polygon points
 			for(var x = beginx; x <= endx; x+=1) {	
 				var ya = Math.ceil((x - x1) * (y2a-y1a) / (x2-x1) + y1a), cya = Math.ceil(ya.clamp(ytop[x],ybottom[x])); // top
 				var yb = Math.ceil((x - x1) * (y2b-y1b) / (x2-x1) + y1b), cyb = Math.ceil(yb.clamp(ytop[x],ybottom[x])); // bottom
 					
-				ceilingpoints += x + "," + ytop[x] + " ";
-				floorpoints += x + "," + cyb + " ";
-				wallpoints += x + "," + cya + " ";
-			}
-			
-			// Add bottom polygon points
-			for(var x = endx; x >= beginx; x-=1) {	
-				var ya = Math.ceil((x - x1) * (y2a-y1a) / (x2-x1) + y1a), cya = Math.ceil(ya.clamp(ytop[x],ybottom[x])); // top
-				var yb = Math.ceil((x - x1) * (y2b-y1b) / (x2-x1) + y1b), cyb = Math.ceil(yb.clamp(ytop[x],ybottom[x])); // bottom
+				if(x == beginx) {
+					cyaBegin = cya;
+					cybBegin = cyb;
+				}
+				if(x == endx) {
+					cyaEnd = cya;
+					cybEnd = cyb;
+				}
 				
-				ceilingpoints += x + "," + cya + " ";
-				floorpoints += x + "," + (ybottom[x] + 1) + " ";
-				wallpoints += x + "," + cyb + " ";
+				newytop[x] = cya;
+				newybottom[x] = cyb;
 			}
 			
-			drawPolygon(ceilingpoints, "grey", false);
+			var beginytop = ytop[beginx];
+			var endytop = ytop[endx];
+			var beginybottom = ybottom[beginx];
+			var endybottom = ybottom[endx];
+			drawPolygon(beginx, endx, [beginytop, endytop, cyaEnd, cyaBegin], "grey", false);
 			if(currentSector.neighbors[vertexIndex] >= 0) {
-				drawPolygon(wallpoints, "red", true);
+				drawPolygon(beginx, endx, [cyaBegin, cyaEnd, cybEnd, cybBegin], "none", true);
 			} else {
-				drawPolygon(wallpoints, "white", true);
+				drawPolygon(beginx, endx, [cyaBegin, cyaEnd, cybEnd, cybBegin], "white", true);
 			}
-			drawPolygon(floorpoints, "green", false);
+			drawPolygon(beginx, endx, [cybBegin, cybEnd, endybottom, beginybottom], "green", false);
 				
 			if (currentSector.neighbors[vertexIndex] >= 0 && !renderedSectors.includes(currentSector.neighbors[vertexIndex]) && endx >= beginx){
-				// sectorQueue.push({ sectorno: currentSector.neighbors[vertexIndex], sx1: 0, sx2: W-1})
+				var neighborIndex = currentSector.neighbors[vertexIndex];
+				sectorQueue.push({ sectorno: neighborIndex, sx1: beginx, sx2: endx})
+				if(sectors[neighborIndex].floor > currentSector.floor) {
+					// drawPolygon(beginx + "," + (ybottom[beginx] - 10) + "," + endx + "," + (ybottom[endx] - 10) + "," + endx + "," + ybottom[endx] + "," + beginx + "," + ybottom[beginx], "brown", true);
+					// for(var x = beginx; x <= endx; x+=1) {	
+						// ybottom[x] -= 10;
+					// }
+				}			
 			}
 		}
+		//update ytop and ybottom
+		ytop = newytop.slice();
+		ybottom = newybottom.slice();
 		renderedSectors.push(currentRenderOp.sectorno);		
 	}
 	
@@ -248,18 +261,9 @@ class Vector2D {
 	constructor(x, y) { 
 		this.x = x; this.y = y; 
 	}
-	
-	// Vector cross product
-	vxs(x2, y2) {
-		return this.x * y2 - x2 * this.y;
-	}
-	
-	vxs(v) {
-		return this.x * v.y - v.x * this.y;
-	}
-	
-	pointside(x0, y0, x1, y1) {
-		return vxs(x1 - x0, y1 - y0, this.x - x0, this.y - y0);
+		
+	pointside(p0, p1) {
+		return (p1.x - p0.x)*(this.y - p0.y) - (this.x - p0.x)*(p1.y - p0.y);
 	}
 }
 
